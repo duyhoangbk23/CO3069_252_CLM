@@ -1,0 +1,112 @@
+# ======================== Kibana Configuration =========================
+
+# ---------------------------------- Server ------------------------------------
+server.port: 5601
+server.host: "0.0.0.0"
+server.name: "kibana-security"
+server.publicBaseUrl: "https://kibana.example.com"
+
+# ---------------------------------- Elasticsearch -----------------------------
+elasticsearch.hosts: ["https://elasticsearch:9200"]
+elasticsearch.username: "kibana_system"
+elasticsearch.password: "${KIBANA_PASSWORD}"
+
+# SSL/TLS Configuration for Elasticsearch connection
+elasticsearch.ssl.certificateAuthorities: ["/etc/kibana/certs/ca.crt"]
+elasticsearch.ssl.verificationMode: full
+
+# ---------------------------------- SSL/TLS -----------------------------------
+server.ssl.enabled: true
+server.ssl.certificate: /etc/kibana/certs/kibana.crt
+server.ssl.key: /etc/kibana/certs/kibana.key
+server.ssl.certificateAuthorities: ["/etc/kibana/certs/ca.crt"]
+
+# ---------------------------------- Security ----------------------------------
+xpack.security.enabled: true
+xpack.security.encryptionKey: "something_at_least_32_characters_long_for_encryption_key_here"
+xpack.security.session.idleTimeout: "1h"
+xpack.security.session.lifespan: "8h"
+
+# Configure session storage
+xpack.security.sessionTimeout: 600000
+
+# Login assistance
+xpack.security.loginAssistanceMessage: "Log Management System - Authorized Users Only"
+
+# ---------------------------------- Monitoring --------------------------------
+monitoring.ui.enabled: true
+monitoring.kibana.collection.enabled: true
+
+xpack.monitoring.elasticsearch.hosts: ["https://elasticsearch:9200"]
+xpack.monitoring.elasticsearch.username: "kibana_monitor"
+xpack.monitoring.elasticsearch.password: "${KIBANA_PASSWORD}"
+xpack.monitoring.elasticsearch.ssl.certificateAuthorities: ["/etc/kibana/certs/ca.crt"]
+
+# ---------------------------------- Alerting ----------------------------------
+xpack.alerting.enabled: true
+xpack.actions.enabled: true
+
+# Email action configuration
+xpack.actions.email.domain_allowlist: ['example.com', 'company.com']
+
+# ---------------------------------- Reporting ---------------------------------
+xpack.reporting.enabled: true
+xpack.reporting.encryptionKey: "something_at_least_32_characters_long_for_reporting_key_here"
+xpack.reporting.kibanaServer.hostname: "kibana.example.com"
+xpack.reporting.kibanaServer.protocol: https
+
+# ---------------------------------- Spaces ------------------------------------
+xpack.spaces.enabled: true
+xpack.spaces.maxSpaces: 50
+
+# ---------------------------------- Machine Learning --------------------------
+xpack.ml.enabled: true
+
+# ---------------------------------- Canvas ------------------------------------
+xpack.canvas.enabled: true
+
+# ---------------------------------- Logging -----------------------------------
+logging:
+  appenders:
+    file:
+      type: file
+      fileName: /var/log/kibana/kibana.log
+      layout:
+        type: json
+  root:
+    level: info
+    appenders: [file]
+  loggers:
+    - name: elasticsearch
+      level: warn
+    - name: http.server.response
+      level: debug
+
+# ---------------------------------- Telemetry ---------------------------------
+telemetry.enabled: false
+telemetry.optIn: false
+
+# ---------------------------------- Saved Objects -----------------------------
+savedObjects.maxImportPayloadBytes: 26214400
+
+# ---------------------------------- Maps --------------------------------------
+xpack.maps.enabled: true
+
+# ---------------------------------- APM ---------------------------------------
+xpack.apm.enabled: false
+
+# ---------------------------------- Security Solution -------------------------
+xpack.securitySolution.enabled: true
+xpack.securitySolution.defaultIndex:
+  - 'logs-*'
+  - 'filebeat-*'
+  - 'security-alerts-*'
+
+# ---------------------------------- Custom Settings ---------------------------
+# Custom branding
+#xpack.customBranding.logo: "/path/to/logo.png"
+#xpack.customBranding.pageTitle: "Security Log Management"
+
+# Feature flags
+xpack.fleet.enabled: false
+xpack.infra.enabled: true

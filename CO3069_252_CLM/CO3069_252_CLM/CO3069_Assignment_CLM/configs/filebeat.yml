@@ -1,0 +1,142 @@
+# ======================== Filebeat Configuration =========================
+# Production-ready, Docker-compatible, portable configuration
+# Supports both local VM and containerized deployments
+# ==========================================================================
+
+# ---------------------------------- General -----------------------------------
+name: ${HOSTNAME:filebeat-security-monitor}
+tags: ["security", "production"]
+fields:
+  environment: ${ENVIRONMENT:production}
+  cluster: ${CLUSTER_NAME:default}
+
+# ---------------------------------- Inputs ------------------------------------
+filebeat.inputs:
+
+# SSH Authentication Logs
+- type: log
+  enabled: true
+  paths:
+    - ${LOG_DIR:/logs}/auth.log
+    - ${LOG_DIR:/logs}/secure
+    - ${LOG_DIR:/var/log}/auth.log
+    - ${LOG_DIR:/var/log}/secure
+  fields:
+    log_type: ssh_auth
+  fields_under_root: true
+
+# Nginx Access Logs
+- type: log
+  enabled: true
+  paths:
+    - ${LOG_DIR:/logs}/nginx/access.log
+    - ${LOG_DIR:/var/log}/nginx/access.log
+  fields:
+    log_type: nginx_access
+  fields_under_root: true
+
+# Nginx Error Logs
+- type: log
+  enabled: true
+  paths:
+    - ${LOG_DIR:/logs}/nginx/error.log
+    - ${LOG_DIR:/var/log}/nginx/error.log
+  fields:
+    log_type: nginx_error
+  fields_under_root: true
+
+# System Logs (Syslog)
+- type: log
+  enabled: true
+  paths:
+    - ${LOG_DIR:/logs}/syslog
+    - ${LOG_DIR:/logs}/messages
+    - ${LOG_DIR:/var/log}/syslog
+    - ${LOG_DIR:/var/log}/messages
+  fields:
+    log_type: system
+  fields_under_root: true
+
+# Firewall Logs
+- type: log
+  enabled: true
+  paths:
+    - ${LOG_DIR:/logs}/ufw.log
+    - ${LOG_DIR:/logs}/iptables.log
+    - ${LOG_DIR:/var/log}/ufw.log
+    - ${LOG_DIR:/var/log}/iptables.log
+  fields:
+    log_type: firewall
+  fields_under_root: true
+
+# Application Logs (JSON format)
+- type: log
+  enabled: true
+  paths:
+    - ${LOG_DIR:/logs}/app/*.log
+    - ${LOG_DIR:/var/log}/app/*.log
+  json.keys_under_root: true
+  json.add_error_key: true
+  fields:
+    log_type: application
+  fields_under_root: true
+
+# ---------------------------------- Processors --------------------------------
+processors:
+  # Add host metadata (safe, no external dependencies)
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  
+  # Add cloud metadata if available (graceful failure if not in cloud)
+  - add_cloud_metadata: ~
+  
+  # Drop debug level logs to reduce volume
+  - drop_event:
+      when:
+        regexp:
+          message: '(?i)debug'
+
+# ---------------------------------- Output ------------------------------------
+output.logstash:
+  enabled: true
+  hosts: ["${LOGSTASH_HOST:logstash}:${LOGSTASH_PORT:5044}"]
+  
+  # SSL Configuration (with graceful fallback to unencrypted)
+  ssl.enabled: ${LOGSTASH_SSL_ENABLED:false}
+  
+  # Use environment variables for certificate paths
+  # If paths don't exist, SSL will be disabled gracefully
+  ssl.certificate_authorities: ["${LOGSTASH_CA_CERT:/etc/filebeat/certs/ca.crt}"]
+  ssl.certificate: "${LOGSTASH_CERT:/etc/filebeat/certs/filebeat.crt}"
+  ssl.key: "${LOGSTASH_KEY:/etc/filebeat/certs/filebeat.key}"
+  ssl.verification_mode: "${LOGSTASH_SSL_VERIFY:full}"
+  
+  # Connection settings
+  loadbalance: true
+  bulk_max_size: 1024
+  worker: 1
+  
+  # Backoff settings for resilience
+  backoff.init: 1s
+  backoff.max: 30s
+
+# ---------------------------------- Logging -----------------------------------
+logging.level: ${LOG_LEVEL:info}
+logging.to_files: true
+logging.to_stderr: false
+logging.files:
+  path: ${FILEBEAT_LOG_DIR:/var/log/filebeat}
+  name: filebeat
+  keepfiles: 3
+  permissions: 0644
+  rotateeverybytes: 10485760  # 10MB
+
+# ---------------------------------- General Settings --------------------------
+# Registry for tracking file positions
+filebeat.registry.path: ${FILEBEAT_REGISTRY_PATH:filebeat_registry}
+filebeat.registry.file_permissions: 0600
+filebeat.registry.flush.timeout: 0s
+
+# Graceful shutdown
+shutdown_timeout: 5s
+max_procs: ${MAX_PROCS:}

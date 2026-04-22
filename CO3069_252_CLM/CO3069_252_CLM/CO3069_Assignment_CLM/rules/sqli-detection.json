@@ -1,0 +1,197 @@
+{
+  "name": "SQL Injection Attack Detection",
+  "type": "query",
+  "tags": ["web-attack", "sql-injection", "owasp", "T1190"],
+  "description": "Detects potential SQL injection attempts in web application requests by identifying common SQL injection patterns in request URIs and parameters.",
+  "enabled": true,
+  "risk_score": 80,
+  "severity": "high",
+  "rule_id": "sqli-detection-001",
+  "author": ["Security Team"],
+  "false_positives": [
+    "Legitimate database administration interfaces",
+    "Security testing activities (authorized)",
+    "Web application error messages containing SQL keywords",
+    "Documentation or tutorial pages displaying SQL examples"
+  ],
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": {
+        "id": "TA0001",
+        "name": "Initial Access",
+        "reference": "https://attack.mitre.org/tactics/TA0001/"
+      },
+      "technique": [
+        {
+          "id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "reference": "https://attack.mitre.org/techniques/T1190/"
+        }
+      ]
+    },
+    {
+      "framework": "OWASP Top 10",
+      "category": "A03:2021",
+      "name": "Injection",
+      "reference": "https://owasp.org/Top10/A03_2021-Injection/"
+    }
+  ],
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "tags": "sql_injection"
+          }
+        },
+        {
+          "exists": {
+            "field": "request_uri"
+          }
+        }
+      ],
+      "should": [
+        {
+          "regexp": {
+            "request_uri": {
+              "value": ".*(%27|'|%2D%2D|--|%23|#).*(union|select|insert|update|delete|drop|create|alter|exec|execute|script|javascript|onerror).*",
+              "case_insensitive": true
+            }
+          }
+        },
+        {
+          "match_phrase": {
+            "request_uri": "' OR '1'='1"
+          }
+        },
+        {
+          "match_phrase": {
+            "request_uri": "1=1"
+          }
+        },
+        {
+          "match_phrase": {
+            "request_uri": "admin'--"
+          }
+        },
+        {
+          "wildcard": {
+            "request_uri": "*UNION*SELECT*"
+          }
+        },
+        {
+          "wildcard": {
+            "request_uri": "*;DROP*TABLE*"
+          }
+        }
+      ],
+      "minimum_should_match": 1,
+      "filter": [
+        {
+          "range": {
+            "@timestamp": {
+              "gte": "now-1m"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "schedule": {
+    "interval": "1m"
+  },
+  "actions": [
+    {
+      "id": "email-security-team",
+      "group": "default",
+      "params": {
+        "to": ["security@example.com", "webapp-team@example.com"],
+        "subject": "CRITICAL: SQL Injection Attempt Detected",
+        "message": "Alert: SQL injection attempt detected on web application\n\nSource IP: {{context.client_ip}}\nTarget URL: {{context.request_uri}}\nHTTP Method: {{context.http_method}}\nResponse Code: {{context.response_code}}\nUser Agent: {{context.user_agent}}\nTimestamp: {{context.timestamp}}\n\nPayload Pattern:\n{{context.attack_pattern}}\n\nGeoIP Information:\nCountry: {{context.geoip_country}}\nCity: {{context.geoip_city}}\n\nImmediate Actions Required:\n1. Verify if the attack was successful (check response code)\n2. Review application logs for database errors\n3. Check for data exfiltration\n4. Block source IP if attack persists\n5. Review and patch vulnerable endpoint\n6. Perform code review of affected component\n\nKibana Link: {{context.kibana_link}}\n\n--- SQL Injection Detection System ---"
+      }
+    },
+    {
+      "id": "slack-security-channel",
+      "group": "default",
+      "params": {
+        "message": ":warning: *SQL Injection Detected* :warning:\n*Source IP:* {{context.client_ip}}\n*Target:* {{context.request_uri}}\n*Response:* {{context.response_code}}\n*Country:* {{context.geoip_country}}\n<{{context.kibana_link}}|View Details>"
+      }
+    },
+    {
+      "id": "pagerduty-oncall",
+      "group": "critical",
+      "params": {
+        "severity": "critical",
+        "summary": "SQL Injection attempt from {{context.client_ip}}",
+        "description": "SQL injection detected on {{context.request_uri}} with response {{context.response_code}}"
+      }
+    },
+    {
+      "id": "webhook-waf",
+      "group": "default",
+      "params": {
+        "method": "POST",
+        "url": "https://waf.example.com/api/block",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer ${WAF_API_TOKEN}"
+        },
+        "body": {
+          "action": "block",
+          "ip_address": "{{context.client_ip}}",
+          "duration": 3600,
+          "reason": "SQL injection attempt",
+          "rule_id": "sqli-detection-001"
+        }
+      }
+    }
+  ],
+  "throttle": "5m",
+  "index": [
+    "logs-*",
+    "nginx-*",
+    "apache-*",
+    "web-*"
+  ],
+  "from": "now-1m",
+  "to": "now",
+  "references": [
+    "https://owasp.org/www-community/attacks/SQL_Injection",
+    "https://attack.mitre.org/techniques/T1190/",
+    "https://cwe.mitre.org/data/definitions/89.html",
+    "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html"
+  ],
+  "max_signals": 100,
+  "note": "## SQL Injection Investigation Guide\n\n### Severity Assessment\n**Critical Indicators:**\n- Response code 200 (attack may have succeeded)\n- UNION-based injection (data exfiltration possible)\n- Attempts on admin/login endpoints\n- Multiple attempts from same IP\n\n**Lower Risk Indicators:**\n- Response code 400/403 (blocked by WAF)\n- Single isolated attempt\n- Common scanning signatures\n\n### Investigation Steps\n\n#### 1. Immediate Triage (First 5 minutes)\n- [ ] Check HTTP response code\n  - 200: Potential success - ESCALATE\n  - 403/400: Likely blocked\n  - 500: May indicate database error - CHECK LOGS\n- [ ] Review if IP made multiple attempts\n- [ ] Check if any successful queries were executed\n- [ ] Verify WAF/firewall status\n\n#### 2. Impact Assessment (Next 15 minutes)\n- [ ] Review database logs for:\n  - Unusual queries executed\n  - Data access patterns\n  - Error messages\n- [ ] Check application logs for:\n  - Exceptions\n  - Database connection errors\n  - Authorization bypasses\n- [ ] Verify data integrity:\n  - Check for unauthorized data modifications\n  - Review user account changes\n  - Audit administrative actions\n\n#### 3. Threat Intelligence (Next 10 minutes)\n- [ ] IP reputation lookup (AbuseIPDB, VirusTotal)\n- [ ] Check if IP is known scanner/attacker\n- [ ] Review historical activity from this IP\n- [ ] Identify attack tool signatures in User-Agent\n\n#### 4. Code Review (Next 30 minutes)\n- [ ] Identify vulnerable endpoint\n- [ ] Review code for:\n  - Dynamic SQL construction\n  - Missing input validation\n  - Lack of parameterized queries\n  - Insufficient output encoding\n- [ ] Check ORM usage and configuration\n\n### Common SQL Injection Patterns Detected\n\n**Authentication Bypass:**\n```\n' OR '1'='1\nadmin'--\n' OR 1=1--\n```\n\n**UNION-based (Data Extraction):**\n```\n' UNION SELECT NULL, username, password FROM users--\n' UNION ALL SELECT table_name FROM information_schema.tables--\n```\n\n**Boolean-based Blind:**\n```\n' AND 1=1--\n' AND 1=2--\n```\n\n**Time-based Blind:**\n```\n'; WAITFOR DELAY '0:0:5'--\n' AND SLEEP(5)--\n```\n\n**Stacked Queries:**\n```\n'; DROP TABLE users--\n'; INSERT INTO users VALUES (...)--\n```\n\n### Response Actions\n\n**Immediate (0-30 minutes):**\n- [ ] Block attacking IP at WAF/firewall\n- [ ] Enable verbose database logging\n- [ ] Alert development team\n- [ ] Review all requests from attacking IP\n\n**Short-term (30 minutes - 4 hours):**\n- [ ] Deploy emergency patch if vulnerability confirmed\n- [ ] Implement input validation on vulnerable endpoint\n- [ ] Add rate limiting\n- [ ] Update WAF rules\n- [ ] Force password reset if authentication bypass occurred\n\n**Long-term (4+ hours):**\n- [ ] Full code audit of affected module\n- [ ] Implement parameterized queries throughout\n- [ ] Add automated security testing\n- [ ] Conduct security training for dev team\n- [ ] Implement defense-in-depth controls:\n  - Principle of least privilege for DB accounts\n  - Input validation libraries\n  - Output encoding\n  - Web Application Firewall tuning\n\n### Escalation Criteria\n- Response code indicates success (200)\n- Sensitive data potentially accessed\n- Multiple successful attempts detected\n- Attack targets authentication/admin functions\n- Evidence of data exfiltration\n- Automated/persistent attack pattern\n\n### Post-Incident Actions\n- Document attack details in incident report\n- Update threat models\n- Enhance detection rules based on attack\n- Share IOCs with security team\n- Review and update security policies",
+  "investigation_fields": [
+    "client_ip",
+    "request_uri",
+    "http_method",
+    "response_code",
+    "user_agent",
+    "referrer",
+    "geoip.country_name",
+    "geoip.city_name"
+  ],
+  "risk_score_mapping": [
+    {
+      "field": "response_code",
+      "operator": "equals",
+      "value": "200",
+      "risk_score": 95
+    },
+    {
+      "field": "request_uri",
+      "operator": "contains",
+      "value": "UNION",
+      "risk_score": 90
+    },
+    {
+      "field": "request_uri",
+      "operator": "contains", 
+      "value": "DROP",
+      "risk_score": 100
+    }
+  ]
+}
