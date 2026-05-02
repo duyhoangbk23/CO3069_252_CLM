@@ -1,0 +1,40 @@
+HƯỚNG DẪN SỬ DỤNG HỆ THỐNG QUẢN LÝ NHẬT KÝ TẬP TRUNG (CLM)
+-------------------------------------------------------
+
+1. GIỚI THIỆU
+Hệ thống được xây dựng trên nền tảng ELK Stack (Elasticsearch, Logstash, Kibana) kết hợp Filebeat để quản lý nhật ký tập trung, đảm bảo tính toàn vẹn bằng HMAC-SHA256 và bảo mật truyền tải bằng TLS 1.3.
+
+2. CẤU TRÚC THƯ MỤC NỘP BÀI
+- README.doc: Tệp hướng dẫn này.
+- srcs/: Chứa toàn bộ mã nguồn hiện thực (Docker, Logstash config, scripts, báo cáo LaTeX).
+- refs/: Chứa tài liệu tham khảo và các bản thảo nháp.
+
+3. YÊU CẦU HỆ THỐNG
+- Docker & Docker Compose (v2.0+).
+- Python 3.x (để chạy script kiểm tra tính toàn vẹn).
+- RAM: Tối thiểu 8GB (ELK tiêu tốn khá nhiều tài nguyên).
+
+4. HƯỚNG DẪN TRIỂN KHAI
+Bước 1: Di chuyển vào thư mục srcs/
+Bước 2: Cấu hình biến môi trường trong tệp .env (đã có sẵn mẫu).
+Bước 3: Khởi chạy hệ thống:
+   docker-compose up -d
+Bước 4: Đợi khoảng 1-2 phút để các dịch vụ khởi động hoàn tất.
+
+5. TRUY CẬP HỆ THỐNG
+- Elasticsearch: https://localhost:9200 (User: elastic)
+- Kibana: http://localhost:5601
+
+6. KIỂM TRA TÍNH TOÀN VẸN (INTEGRITY CHECK)
+Sử dụng script Python trong thư mục srcs/:
+   python srcs/verify_log_integrity.py <index_name> <doc_id> <hmac_key> <password>
+Script sẽ so sánh HMAC lưu trữ và HMAC tính toán lại để phát hiện thay đổi trái phép.
+
+7. MÔ PHỎNG TẤN CÔNG (ATTACK SIMULATION)
+Chạy script shell để tạo log giả lập các cuộc tấn công (SSH Brute-force, SQL Injection):
+   bash srcs/generate_test_logs.sh
+Sau đó kiểm tra Alert trên giao diện Kibana.
+
+-------------------------------------------------------
+Sinh viên thực hiện: [Tên Nhóm/Sinh Viên]
+Môn học: An Ninh Mạng (CO3069)

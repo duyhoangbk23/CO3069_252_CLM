@@ -1,0 +1,111 @@
+# =============================================================================
+# Filebeat Configuration -- Security Log Shipper
+# Based on teammate's production config, adapted for project structure
+# =============================================================================
+
+# ---------------------------------- General -----------------------------------
+name: ${HOSTNAME:filebeat-security-monitor}
+tags: ["security", "production"]
+fields:
+  environment: production
+  cluster: elk-lab
+
+# ---------------------------------- Inputs ------------------------------------
+filebeat.inputs:
+
+# SSH / PAM Authentication Logs
+- type: log
+  enabled: true
+  paths:
+    - /var/log/auth.log
+    - /var/log/secure
+  fields:
+    log_type: ssh_auth
+  fields_under_root: true
+
+# Nginx Access Logs
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/access.log
+    - /var/log/nginx/access.log.*
+  fields:
+    log_type: nginx_access
+  fields_under_root: true
+
+# Nginx Error Logs
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/error.log
+    - /var/log/nginx/error.log.*
+  fields:
+    log_type: nginx_error
+  fields_under_root: true
+
+# System / Syslog
+- type: log
+  enabled: true
+  paths:
+    - /var/log/syslog
+    - /var/log/messages
+  fields:
+    log_type: system
+  fields_under_root: true
+
+# Firewall (UFW / iptables)
+- type: log
+  enabled: true
+  paths:
+    - /var/log/ufw.log
+    - /var/log/iptables.log
+  fields:
+    log_type: firewall
+  fields_under_root: true
+
+# Application Logs (structured JSON)
+- type: log
+  enabled: true
+  paths:
+    - /var/log/app/*.log
+  json.keys_under_root: true
+  json.add_error_key: true
+  fields:
+    log_type: application
+  fields_under_root: true
+
+# ---------------------------------- Processors --------------------------------
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - drop_event:
+      when:
+        regexp:
+          message: '(?i)^\s*debug'
+
+# ---------------------------------- Output ------------------------------------
+output.logstash:
+  enabled: true
+  hosts: ["${LOGSTASH_HOST:logstash}:5044"]
+
+  # SSL disabled: filebeat client cert not present in this deployment.
+  # Set LOGSTASH_HOST env var via docker-compose (defaults to "logstash").
+  ssl.enabled: false
+
+  loadbalance: true
+  bulk_max_size: 1024
+  worker: 1
+  backoff.init: 1s
+  backoff.max: 30s
+
+# ---------------------------------- Logging -----------------------------------
+logging.level: info
+logging.to_files: false
+logging.to_stderr: true
+
+# ---------------------------------- General Settings --------------------------
+setup.enabled: false
+monitoring.enabled: false
+filebeat.registry.file_permissions: 0600
+shutdown_timeout: 5s

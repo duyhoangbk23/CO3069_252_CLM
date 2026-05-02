@@ -1,0 +1,201 @@
+[
+  {
+    "id": "role3-rule-ssh-bruteforce-001",
+    "name": "[Role3] SSH Brute-force Detection",
+    "description": "Cảnh báo khi >5 lần SSH login fail từ cùng IP trong 60 giây. Dựa trên tag 'ssh_failed_login' do Logstash (main.conf) gắn vào khi parse auth.log.",
+    "risk_score": 73,
+    "severity": "high",
+    "type": "threshold",
+    "language": "kuery",
+    "query": "tags: ssh_failed_login OR (log_type: ssh_auth AND message: *Failed\\ password*)",
+    "index": [
+      "logs-*",
+      "security-alerts-*",
+      "filebeat-*"
+    ],
+    "threshold": {
+      "field": ["source.ip"],
+      "value": 5
+    },
+    "from": "now-60s",
+    "interval": "30s",
+    "enabled": true,
+    "tags": ["SSH", "Brute Force", "Credential Access", "T1110", "Role3"],
+    "threat": [
+      {
+        "framework": "MITRE ATT&CK",
+        "tactic": {
+          "id": "TA0006",
+          "name": "Credential Access",
+          "reference": "https://attack.mitre.org/tactics/TA0006/"
+        },
+        "technique": [
+          {
+            "id": "T1110",
+            "name": "Brute Force",
+            "reference": "https://attack.mitre.org/techniques/T1110/"
+          }
+        ]
+      }
+    ],
+    "actions": [],
+    "author": ["Role3-SOC"],
+    "license": "Elastic License v2",
+    "note": "Field 'source.ip' được Logstash parse từ grok: 'from %{IP:source_ip}' trong SSH auth log. Index 'logs-*' là daily rolling index của Logstash output.",
+    "false_positives": [
+      "Sysadmin gõ sai password nhiều lần",
+      "CI/CD pipeline test SSH credentials"
+    ]
+  },
+  {
+    "id": "role3-rule-port-scan-002",
+    "name": "[Role3] Port Scan / Path Enumeration Detection",
+    "description": "Phát hiện quét port hoặc enumeration đường dẫn: nhiều request 404 từ cùng IP, hoặc UFW BLOCK liên tục, hoặc User-Agent chứa 'Nmap'. Logstash tag: blocked_connection, potential_port_scan.",
+    "risk_score": 47,
+    "severity": "medium",
+    "type": "threshold",
+    "language": "kuery",
+    "query": "tags: potential_port_scan OR tags: blocked_connection OR (log_type: nginx_access AND (response_code: 404 OR user_agent.original: *Nmap*))",
+    "index": [
+      "logs-*",
+      "security-alerts-*",
+      "filebeat-*"
+    ],
+    "threshold": {
+      "field": ["source.ip"],
+      "value": 20
+    },
+    "from": "now-10s",
+    "interval": "10s",
+    "enabled": true,
+    "tags": ["Port Scan", "Discovery", "T1046", "Nmap", "UFW", "Role3"],
+    "threat": [
+      {
+        "framework": "MITRE ATT&CK",
+        "tactic": {
+          "id": "TA0007",
+          "name": "Discovery",
+          "reference": "https://attack.mitre.org/tactics/TA0007/"
+        },
+        "technique": [
+          {
+            "id": "T1046",
+            "name": "Network Service Discovery",
+            "reference": "https://attack.mitre.org/techniques/T1046/"
+          }
+        ]
+      }
+    ],
+    "actions": [],
+    "author": ["Role3-SOC"],
+    "license": "Elastic License v2",
+    "note": "UFW BLOCK logs được Logstash parse từ /var/log/ufw.log qua Filebeat. Field 'firewall_action' = BLOCK → tag 'blocked_connection'.",
+    "false_positives": [
+      "Security scanner nội bộ",
+      "Load balancer health check"
+    ]
+  },
+  {
+    "id": "role3-rule-web-attack-003",
+    "name": "[Role3] Web Attack — SQL Injection & XSS",
+    "description": "Phát hiện SQLi và XSS trong Nginx request_uri. Dựa trên tags 'sql_injection' và 'xss' được Logstash (main.conf) gắn qua regex pattern matching. alert_level = critical.",
+    "risk_score": 85,
+    "severity": "critical",
+    "type": "query",
+    "language": "kuery",
+    "query": "tags: sql_injection OR tags: xss OR tags: web_attack OR (log_type: nginx_access AND alert_level: critical)",
+    "index": [
+      "logs-*",
+      "security-alerts-*",
+      "filebeat-*"
+    ],
+    "from": "now-5m",
+    "interval": "1m",
+    "enabled": true,
+    "tags": ["Web Attack", "SQLi", "XSS", "T1190", "Initial Access", "Role3"],
+    "alert_suppression": {
+      "group_by": ["source.ip"],
+      "duration": {"value": 5, "unit": "m"},
+      "missing_fields_strategy": "suppress"
+    },
+    "threat": [
+      {
+        "framework": "MITRE ATT&CK",
+        "tactic": {
+          "id": "TA0001",
+          "name": "Initial Access",
+          "reference": "https://attack.mitre.org/tactics/TA0001/"
+        },
+        "technique": [
+          {
+            "id": "T1190",
+            "name": "Exploit Public-Facing Application",
+            "reference": "https://attack.mitre.org/techniques/T1190/"
+          }
+        ]
+      }
+    ],
+    "actions": [],
+    "author": ["Role3-SOC"],
+    "license": "Elastic License v2",
+    "note": "Logstash regex cho SQLi: (?i)(%27|'|--|union|select|drop). Regex cho XSS: (?i)(<script|javascript:|onerror=|onload=|<img|<iframe). Field 'request_uri' chứa raw URL path.",
+    "false_positives": [
+      "Penetration tester nội bộ",
+      "WAF bypass test"
+    ]
+  },
+  {
+    "id": "role3-rule-privilege-escalation-004",
+    "name": "[Role3] Privilege Escalation — Sudo/Su Detection",
+    "description": "Phát hiện leo thang đặc quyền đáng ngờ: sudo chạy /bin/bash, su thành công thành root, hoặc sudo bị từ chối. Parse từ /var/log/auth.log qua Filebeat + Logstash.",
+    "risk_score": 91,
+    "severity": "critical",
+    "type": "query",
+    "language": "kuery",
+    "query": "tags: privilege_escalation OR (log_type: ssh_auth AND (message: *sudo* OR message: *su\\[*) AND (message: *COMMAND\\=\\/bin\\/bash* OR message: *Successful\\ su* OR message: *command\\ not\\ allowed*))",
+    "index": [
+      "logs-*",
+      "security-alerts-*",
+      "filebeat-*"
+    ],
+    "from": "now-5m",
+    "interval": "1m",
+    "enabled": true,
+    "tags": ["Privilege Escalation", "T1548", "sudo", "su", "Role3"],
+    "alert_suppression": {
+      "group_by": ["user.name", "host.name"],
+      "duration": {"value": 10, "unit": "m"},
+      "missing_fields_strategy": "suppress"
+    },
+    "threat": [
+      {
+        "framework": "MITRE ATT&CK",
+        "tactic": {
+          "id": "TA0004",
+          "name": "Privilege Escalation",
+          "reference": "https://attack.mitre.org/tactics/TA0004/"
+        },
+        "technique": [
+          {
+            "id": "T1548",
+            "name": "Abuse Elevation Control Mechanism",
+            "reference": "https://attack.mitre.org/techniques/T1548/"
+          },
+          {
+            "id": "T1548.003",
+            "name": "Sudo and Sudo Caching",
+            "reference": "https://attack.mitre.org/techniques/T1548/003/"
+          }
+        ]
+      }
+    ],
+    "false_positives": [
+      "Sysadmin hợp lệ dùng sudo trong giờ làm việc",
+      "Automated deployment scripts"
+    ],
+    "actions": [],
+    "author": ["Role3-SOC"],
+    "license": "Elastic License v2",
+    "note": "Logstash chưa có tag riêng cho privilege escalation. Rule này dùng KQL match trực tiếp trên message field. Nếu muốn tag riêng, thêm vào main.conf: if [message] =~ /sudo.*COMMAND.*bash/ { mutate { add_tag => ['privilege_escalation'] } }"
+  }
+]

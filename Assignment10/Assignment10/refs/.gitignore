@@ -1,0 +1,14 @@
+# Secrets -- never commit
+.env
+
+# Certificates and private keys
+certs/
+
+# macOS metadata
+.DS_Store
+
+# Editor directories
+.idea/
+.vscode/
+*.swp
+*.swo
