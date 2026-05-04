@@ -6,30 +6,38 @@
 
 ## 1. Folder Structure
 
-    ```
-    elk-project-duy/
-    ├── .env                       <-- Secrets (DO NOT commit)
-    ├── docker-compose.yaml        <-- Main compose file
-    ├── certs/                     <-- CA and per-service certificates
-    │   ├── ca.crt
-    │   ├── ca.p12
-    │   ├── elasticsearch/
-    │   │   ├── elasticsearch.crt
-    │   │   └── elasticsearch.key
-    │   ├── kibana/
-    │   │   ├── kibana.crt
-    │   │   └── kibana.key
-    │   └── logstash/
-    │       ├── logstash.crt
-    │       └── logstash.key
-    ├── kibana/
-    │   └── kibana.yml              <-- Kibana config (security, alerting, SSL)
-    ├── filebeat/
-    │   └── filebeat.yml           <-- Log shipper inputs and output config
-    └── logstash/
-        ├── logstash.yml            <-- Logstash settings (monitoring disabled)
-        └── pipeline/
-            └── main.conf          <-- Log parsing, HMAC integrity, ES output
+    ```text
+    Assignment10/
+    ├── README.md                      <-- This documentation
+    ├── CO3069_Assignment_CLM_report.pdf <-- Report
+    ├── refs/                          <-- References and guides
+    │   ├── .gitignore
+    │   ├── instances.yaml             <-- DNS entries for certificates
+    │   └── TEST_GUIDE.md              <-- Testing documentation
+    └── srcs/                          <-- Source code and configuration
+        ├── .env                       <-- Secrets (DO NOT commit)
+        ├── .env.example               <-- Template for environment variables
+        ├── docker-compose.yml         <-- Main compose file
+        ├── generate_test_logs.sh      <-- Script to generate test logs
+        ├── verify_log_integrity.py    <-- Script to verify HMAC integrity
+        ├── certs/                     <-- CA and per-service certificates (generated)
+        ├── filebeat/
+        │   └── filebeat.yml           <-- Log shipper inputs and output config
+        ├── kibana/
+        │   └── kibana.yml             <-- Kibana config (security, alerting, SSL)
+        ├── logstash/
+        │   ├── logstash.yml           <-- Logstash settings (monitoring disabled)
+        │   └── pipeline/
+        │       └── main.conf          <-- Log parsing, HMAC integrity, ES output
+        └── SOC/                       <-- Security Operations Center scripts & rules
+            ├── attack_scripts/        <-- Scripts to simulate attacks
+            ├── detection_rules/       <-- Kibana security rules (NDJSON)
+            ├── logs_sample/           <-- Sample logs for testing
+            ├── auto_push.sh           <-- Automated setup script
+            ├── dashboard.ndjson       <-- Kibana dashboard export
+            ├── generate_logs.py       <-- Script to generate dummy logs
+            ├── import_to_elastic.py   <-- Script to import data directly to ES
+            └── setup_kibana.py        <-- Script to configure Kibana spaces and rules
     ```
 
 ---
